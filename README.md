@@ -63,7 +63,7 @@ If you use this program for your publication, please cite:
 HMM-Prospector program (developed by Liliane S. Oliveira and Arthur Gruber, University of São Paulo, Brazil, unpublished).
 
 
-# Contact
+## Contact
 
 To report bugs, to ask for help and to give any feedback, please contact Arthur Gruber (argruber@usp.br) or Liliane S. Oliveira (liliane.sntn@gmail.com).
 
