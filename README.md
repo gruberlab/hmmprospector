@@ -54,9 +54,14 @@ perl hmm-prospector.pl -d <file> -s|-e <decimal>  <optional parameters>
 
 -v|version        : Version.
 ```
-## User manual
-
 ## Tutorial
+Follow the instructions in the HMM-Prospector Manual file to learn how to use HMM-Prospector program and interpret the results.
+
+## Reference
+If you use this program for your publication, please cite:
+
+HMM-Prospector program (developed by Liliane S. Oliveira and Arthur Gruber, University of São Paulo, Brazil, unpublished).
+
 
 # Contact
 
