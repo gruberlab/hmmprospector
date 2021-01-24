@@ -1,14 +1,11 @@
 #!/usr/bin/perl
 
-# hmm-prospector.pl v. 1.0 (2020-11-24)
-# This script scan a FASTA database (converted to protein using transeq) using as query a HMM database (vFam database - Skewes-Cox et al, 2014) or HMM file given by the user, and generate statistics for the hits found (using hmmsearch). It will run hmmsearch if the tabular file is not available. If you provide a FASTQ file, it will convert it to .FASTA and .QUAL for transeq. It will check if your db is a HMM database, if the transeq file is present and if the tabular hmmsearch file is present.
-
 use strict;
 use warnings;
 use Getopt::Long;
 use File::Basename;
 
-#variables
+# variables
 my $output = 'output_dir';
 my $version = "1.0";
 my $last_update = "2020-11-22";
@@ -118,7 +115,8 @@ if(defined $hmm_db){
 } 
 my %hash_att = ();
 
-# If more than one profile HMM is informed, it is necessary to store the individual characteristics of each one
+# If more than one profile HMM is informed, it is necessary to store the individual 
+# characteristics of each one
 if($taxon_tag > 0){
      $/ = "//\n";      
      open(DATA, "<$hmm_db");
@@ -208,14 +206,14 @@ my %hmms = ();
 my %hmms_score = ();
 my $resp;
 
-#Checks whether the input file exists.
+#Checks if the input file exists.
 if(-e $input_file){
     if($hmm_db){
     	print $fl "Input file: $hmm_db\n";
     	print STDERR "Input file: $hmm_db\n";
     }
 
-    #Checks whether an annotation file has been entered.
+    #Checks if an annotation file has been entered.
     if(defined $annotation_files){
     	my $caracter = substr $annotation_files, -1;
     	if($caracter eq '/'){
@@ -241,7 +239,7 @@ if(-e $input_file){
 	    die "ERROR: Missing argument -i.\n$help_print\n";	
    	}
 	else{
-	    # Checks whether the user entered a score or e-value to be used as a cutoff parameter.
+	    # Checks if the user entered a score or e-value to be used as a cutoff parameter.
             $resp = verifyScoreEvalue($hmm_db);
         }
 
@@ -274,7 +272,7 @@ if(-e $input_file){
             die "ERROR: Missing argument -i.\nTry -h for more details.\n";
         }
 	else{
-	    # Checks whether the user entered a score or e-value to be used as a cutoff parameter.
+	    # Checks if the user entered a score or e-value to be used as a cutoff parameter.
             $resp = verifyScoreEvalue($hmm_db);
         }
 	my $aux1;
@@ -336,13 +334,13 @@ if(-e $input_file){
                		die "ERROR: Missing mandatory argument -s or -e.\n$help_print\n";
             }
 	}
-	else{ # The file is not a hmmsearch output tabular file. The program is finished.
+	else{ # The file is not a hmmsearch output tabular file. Execution was aborted.
 	    print $fl "The $input_file file is not compatible with hmmsearch tabular file!\n";
 	    die "The $input_file file is not compatible with hmmsearch tabular file!\n";	    
 	}
     }
 }
-else{ # The input file does not exist. The program is finished.
+else{ # The input file does not exist. Execution was aborted.
     close($fl);
     system "rm -rf $output";
     die "File $input_file not found! Directory $output removed!\n";
@@ -351,7 +349,8 @@ else{ # The input file does not exist. The program is finished.
 print $fl "Creating table with results and saving it in $output\n"; 
 
 my %vfams;
-# If annotation files are entered, the programs stores information of the families from these files.
+# If annotation files are entered, the program stores information of the families related 
+# to each vFam model.
 if(defined $annotation_files){
     #Associates vFAMs to their families
     my $filestring = `ls $annotation_files`;
@@ -1094,10 +1093,11 @@ close($fl);
 exit;
 
 ################################################################
-### Sobroutines
+###                       Subroutines                        ###
 ################################################################
 
-# This routine checks if profile HMMs contains cutoff scores values to be used in the analysis.
+# This routine checks if profile HMMs contain cutoff scores values to be used in the 
+# analysis.
 sub verifyCutoff{
     my $hmm = shift;
     my $value = `grep SCORE $hmm`;
@@ -1223,7 +1223,8 @@ sub verifyDatabaseType{
     return $ext;
 }
 
-# This routine checks if a directory with the given output name already exists. If so, a numeric suffix is added to the name.
+# This routine checks if a directory with the user-specified output name already exists. 
+# If so, a numeric suffix is added to the name.
 sub output_dir_name {
     my $output_dir_name = shift;
     my $count = 2;
@@ -1240,7 +1241,7 @@ sub output_dir_name {
     return ($output_dir_name);
 }
 
-# This routine identifies whether the fasta file contains nucleotide or protein sequences.
+# This routine identifies if the fasta file contains nucleotide or protein sequences.
 sub verifyFastaFileComposition{
     my $file = shift;
     my $count = 0;
@@ -1286,7 +1287,8 @@ sub verifyFastaFileComposition{
     return $type;
 }
 
-# This routine checks whether a tabular input file is a hmmsearch tabular file.
+# This routine checks if the user-specified tabular input file is a hmmsearch tabular 
+# output file.
 sub verifyTabularFile{
     my $file = shift;
     open(my $tab, "$file");
@@ -1339,7 +1341,7 @@ sub runTranseq{
 	print "Transeq protein file found. Skipping translation of nucleic acid sequences\n";
 	$transeq = $aux;
     }
-    else{ #run the transeq program:
+    else{ #run transeq program:
      	$transeq = $name."_transeq.fasta";
 	print $fl "Performing conceptual translation of $file and creating $transeq (Parameters: frame = 6) \n";
         print "Performing conceptual translation of $file and creating $transeq... \n";
