@@ -1,5 +1,7 @@
 #!/usr/bin/perl
 
+# Addition of the -rl (read length) parameter
+
 use strict;
 use warnings;
 use Getopt::Long;
@@ -7,8 +9,8 @@ use File::Basename;
 
 # variables
 my $output = 'output_dir';
-my $version = "1.0";
-my $last_update = "2020-11-22";
+my $version = "1.1";
+my $last_update = "2021-01-15";
 my $help;
 my $annotation_files;
 my ($query_name, $E_value, $score);
@@ -28,6 +30,7 @@ my $input_file;
 my $file_log = "file.log";
 my $version_op;
 my $replace = "yes";
+my $read_length;
 my $help_print = "##### HMM-Prospector - version $version ($last_update) - L. Oliveira & A. Gruber #####
 
 HMM-Prospector is a script that uses a single or multiple profile HMMs as a query in 
@@ -64,6 +67,7 @@ OPTIONAL PARAMETERS:
 		    specified in the respective CUTOFF SCORE tag of each profile HMM. For models not containing cutoff 
 		    values, HMM-Prospector will use the cutoff value specified by the parameter -e ou -s. If none of these 
 		    parameters has been specified, the program will then use hmmsearch's default cutoff value (-E 10). 
+-rl		  : Length of the reads contained in the input file.
 -v|version        : Version.
  \n";
 
@@ -77,6 +81,7 @@ my $optret = GetOptions ("d=s"			=> \$input_file,
 			 "a=s" 			=> \$annotation_files,
 			 "cpu=i"		=> \$cpu,
 			 "r=s"			=> \$replace,
+			 "rl=i"			=> \$read_length,
 			 "v|version"            => \$version_op);
 
 if($help){
@@ -1124,8 +1129,24 @@ sub verifyScoreEvalue{
 	    if($number == 1){
 		$usr_score = $aux_score;
             	$usr_evalue = undef;
-
-            	print $fl "Cutoff score: $usr_score\n";
+		if(defined $read_length){
+                    my $model_length = `grep LENG $hmm`;
+                    $model_length =~ s/LENG//;
+                    $model_length =~ s/\s//g;
+                    $model_length =~ s/\://g;
+                    my $read_length_prot = ($read_length/3);
+                    if($read_length_prot < $model_length){
+                        print $fl "Model: $hmm\n";
+                        print $fl "Cutoff score: $usr_score\n";
+                        print $fl "Read Length: $read_length\n";
+                        my $new_value = ($read_length_prot/$model_length)*$usr_score;
+                        $usr_score = $new_value;
+                        print $fl "Adjusted cutoff score: $usr_score\n";
+                    }
+                }
+		else{
+            	    print $fl "Cutoff score: $usr_score\n";
+		}
 		return 1;
 	    } 
 	    else{
@@ -1148,11 +1169,26 @@ sub verifyScoreEvalue{
                             $value =~ s/CUTOFF SCORE//;
                             $value =~ s/\s//g;
                             $value =~ s/\://g;
-			    $hmms_score{lc($aux_n)} = $value;
 			    my $file = $dir."/".$aux_n.".hmm";
 			    open(HMMFILE, ">$file") or die "ERROR: Couldn't create file $output/$file : $!\n";
                             print HMMFILE $unique_hmm;
                             close (HMMFILE);
+			    if(defined $read_length){
+                                my $model_length = `grep LENG $file`;
+				$model_length =~ s/LENG//;
+				$model_length =~ s/\s//g;
+				$model_length =~ s/\://g;
+				my $read_length_prot = ($read_length/3);
+            			if($read_length_prot < $model_length){
+				    print $fl "Model: $file\n";
+                                    print $fl "Cutoff score: $value\n";
+                                    print $fl "Read Length: $read_length\n";
+                		    my $new_value = ($read_length_prot/$model_length)*$value;
+                		    $value = $new_value;
+				    print $fl "Adjusted cutoff score: $value\n";
+            			}
+                            }
+                            $hmms_score{lc($aux_n)} = $value;
 			    $achei = 1;			    
                             next;
 			}

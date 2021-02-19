@@ -1,0 +1,2 @@
+tutorial.tar.gz filter=lfs diff=lfs merge=lfs -text
+tutorial.tar.bz filter=lfs diff=lfs merge=lfs -text
