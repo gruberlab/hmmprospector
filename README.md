@@ -60,8 +60,7 @@ Follow the instructions in the HMM-Prospector Manual file to learn how to use HM
 ## Reference
 If you use this program for your publication, please cite:
 
-HMM-Prospector program (developed by Liliane S. Oliveira and Arthur Gruber, University of São Paulo, Brazil, unpublished).
-
+Oliveira, L.S. and Gruber, A. (2021) Rational design of profile HMMs for viral classification and discovery. In Nakaya, H. (Ed.), Bioinformatics. Exon Publications, Brisbane, Australia, pp. 151-170.
 
 ## Contact
 
