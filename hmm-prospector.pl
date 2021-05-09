@@ -1,5 +1,6 @@
 #!/usr/bin/perl
 
+# Addition of the -dr parameter (yes|no) to indicate if the input file contains duplicate headers.
 # Addition of the -rl (read length) parameter
 
 use strict;
@@ -9,8 +10,8 @@ use File::Basename;
 
 # variables
 my $output = 'output_dir';
-my $version = "1.1";
-my $last_update = "2021-01-15";
+my $version = "1.3";
+my $last_update = "2021-04-22";
 my $help;
 my $annotation_files;
 my ($query_name, $E_value, $score);
@@ -31,6 +32,7 @@ my $file_log = "file.log";
 my $version_op;
 my $replace = "yes";
 my $read_length;
+my $duplicated = "no";
 my $help_print = "##### HMM-Prospector - version $version ($last_update) - L. Oliveira & A. Gruber #####
 
 HMM-Prospector is a script that uses a single or multiple profile HMMs as a query in 
@@ -55,6 +57,7 @@ Mandatory parameters:
 OPTIONAL PARAMETERS:
 -a                : Directory containing profile HMM annotations (valid only when using vFam models as input).
 -cpu              : Number of threads to be used by hmmsearch.
+-dh <yes|no>	  : The database contains duplicate headers, e.g. due to paired reads (default = no). 
 -e | -s <decimal> : E-value (-e) or score (-s) threshold value. Report hmmsearch hits that present values equal to 
 		    or lower than E-value or equal to or larger than score. One parameter and the respective value 
 		    must be provided. If an hmmsearch tabular result file is used as input, then parameters -e or -s 
@@ -82,6 +85,7 @@ my $optret = GetOptions ("d=s"			=> \$input_file,
 			 "cpu=i"		=> \$cpu,
 			 "r=s"			=> \$replace,
 			 "rl=i"			=> \$read_length,
+			 "dh=s"			=> \$duplicated,
 			 "v|version"            => \$version_op);
 
 if($help){
@@ -113,10 +117,10 @@ my $type_tag = 0;
 
 # This routines counts the number of profile HMMs.
 if(defined $hmm_db){
-    $taxon_tag = `grep -c TAXON $hmm_db`;
-    $protein_tag = `grep -c PROTEIN $hmm_db`;
-    $range_tag = `grep -c RANGE $hmm_db`;
-    $type_tag = `grep -c TYPE $hmm_db`;
+    $taxon_tag = `grep -ic TAXON $hmm_db`;
+    $protein_tag = `grep -ic PROTEIN $hmm_db`;
+    $range_tag = `grep -ic RANGE $hmm_db`;
+    $type_tag = `grep -ic TYPE $hmm_db`;
 } 
 my %hash_att = ();
 
@@ -149,14 +153,16 @@ if($taxon_tag > 0){
                 $protein =~ s/PROTEIN//;
                 $protein =~ s/^\s+|\s+$//g;
             }
-	    if ($line =~ /RANGE/g) {
+	    if ($line =~ /RANGE/g or $line =~ /Range/g) {
                 $range = $line;
                 $range =~ s/RANGE//;
+		$range =~ s/Range//;
                 $range =~ s/^\s+|\s+$//g;
             }
-	    if ($line =~ /TYPE/g) {
+	    if ($line =~ /TYPE/g or $line =~ /Type/g) {
                 $type = $line;
                 $type =~ s/TYPE//;
+	    	$type =~ s/Type//;
                 $type =~ s/^\s+|\s+$//g;
             }
         }
@@ -249,17 +255,55 @@ if(-e $input_file){
         }
 
 	# Verifies the composition of the fasta file (nucleotide or amino acid)
-        
-	my $type = verifyFastaFileComposition($input_file);
+	my $current_file = $input_file;
+	if(lc($duplicated) eq "yes"){
+	    if(defined $dir){
+            	my $dup_1 = $dir."/".$file_name."_formatted.fasta";
+            	if(-e $dup_1){
+                    print $fl "Formatted FASTA file found. Skipping duplicate header removal.\n";
+		    print STDERR "Formatted FASTA file found. Skipping duplicate header removal.\n";
+		    $current_file = $dup_1;
+            	}
+            	else{
+		    $current_file = format_multifasta_headers($input_file);
+		    if($current_file =~ /\//){
+                    	my $aux_name = substr $current_file, (rindex($current_file, "/") + 1), $len;
+                    	$file_name = $aux_name;
+			$file_name =~ s/\.fasta//;
+                    }
+                    else{
+                    	$file_name = $current_file;
+                    }
+            	}
+            }
+     	    my $dup_2 = $file_name."_formatted.fasta";
+	    if(-e $dup_2){
+            	print $fl "Formatted FASTA file found. Skipping duplicate header removal.\n";
+                print STDERR "Formatted FASTA file found. Skipping duplicate header removal.\n";
+		$current_file = $dup_2;
+            }
+	    else{
+	    	$current_file = format_multifasta_headers($input_file);
+		if($current_file =~ /\//){
+		    my $aux_name = substr $current_file, (rindex($current_file, "/") + 1), $len;
+		    $file_name = $aux_name;
+		    $file_name =~ s/\.fasta//;
+		}
+		else{
+		    $file_name = $current_file;
+		}
+	    }
+	} 
+	my $type = verifyFastaFileComposition($current_file);
 	if($type == 1){ # Nucleotide
 	    print $fl "Type: Nucleotide Fasta\n";
 	    
 	    # Runs transeq program to translate the nucleotide sequences into proteins	    
-	    $transeq_name = runTranseq($file_name, $input_file, $dir);	
+	    $transeq_name = runTranseq($file_name, $current_file, $dir);	
      	}
     	else{# Amino acid
 	    print $fl "Type: Protein Fasta\n";
-	    $transeq_name = $input_file;	    
+	    $transeq_name = $current_file;	    
     	}	
 
 	#Runs hmmsearch program.
@@ -267,9 +311,7 @@ if(-e $input_file){
 	$hmmsearch_tabular_file = runHmmsearch($file_name, $transeq_name, $resp);
     }
     elsif($ext == 2){ # The input file is a fastq file
-	print $fl "Type: Fastq\n";
-	print $fl "Step: Converting fastq file to fasta file.\n";
-	
+ 	my $current_file = $input_file;	
 	if(!defined $hmm_db){
 	    print $fl "ERROR: Missing argument -i\n";
             close($fl);
@@ -280,6 +322,8 @@ if(-e $input_file){
 	    # Checks if the user entered a score or e-value to be used as a cutoff parameter.
             $resp = verifyScoreEvalue($hmm_db);
         }
+	print $fl "Type: Fastq\n";
+        print $fl "Step: Converting fastq file to fasta file.\n";
 	my $aux1;
  	my $aux2;
 	my $aux3;
@@ -316,11 +360,51 @@ if(-e $input_file){
 	    print $fl "Runnig fastq_to_fasta program (Parameters: -i $input_file -n -Q 33 -o $aux)\n";
 	    print STDERR "Runnig fastq_to_fasta program (Parameters: -i $input_file -n -Q 33 -o $aux)\n";
 	    system "fastq_to_fasta -i $input_file -n -Q 33 -o $aux 2>> $log";	    
-	    print $fl "Done.\n";
+	    print $fl "Done.\n";	    
+	    $input_file = $aux;	    
     	}
 
+	if(lc($duplicated) eq "yes"){
+            if(defined $dir){
+                my $dup_1 = $dir."/".$file_name."_formatted.fasta";
+                if(-e $dup_1){
+                    print $fl "Formatted FASTA file found. Skipping duplicate header removal.\n";
+                    print STDERR "Formatted FASTA file found. Skipping duplicate header removal.\n";
+                    $current_file = $dup_1;
+                }
+                else{
+                    $current_file = format_multifasta_headers($input_file);
+                    if($current_file =~ /\//){
+                        my $aux_name = substr $current_file, (rindex($current_file, "/") + 1), $len;
+                        $file_name = $aux_name;
+                        $file_name =~ s/\.fasta//;
+                    }
+                    else{
+                        $file_name = $current_file;
+                    }
+                }
+            }
+           my $dup_2 = $file_name."_formatted.fasta";
+           if(-e $dup_2){
+                print $fl "Formatted FASTA file found. Skipping duplicate header removal.\n";
+                print STDERR "Formatted FASTA file found. Skipping duplicate header removal.\n";
+                $current_file = $dup_2;
+            }
+            else{
+                $current_file = format_multifasta_headers($input_file);
+                if($current_file =~ /\//){
+                    my $aux_name = substr $current_file, (rindex($current_file, "/") + 1), $len;
+                    $file_name = $aux_name;
+                    $file_name =~ s/\.fasta//;
+                }
+                else{
+                    $file_name = $current_file;
+                }
+            }
+        }
+
 	# Runs transeq program to translate the nucleotide sequences into proteins
-	$transeq_name = runTranseq($file_name, $input_file, $dir);
+	$transeq_name = runTranseq($file_name, $current_file, $dir);
   	
 	# Runs hmmsearch program.
 	$hmmsearch_tabular_file = runHmmsearch($file_name, $transeq_name, $resp);
@@ -759,10 +843,12 @@ if(defined $annotation_files){ # If annotation files are entered (for vFAMs or v
             $str_table2 .= "\t$aux_tag[1]";
         }
         if($range_tag > 0){
-            $str_table2 .= "\t$aux_tag[2]";
+	    my $aux = lc($aux_tag[2]);
+            $str_table2 .= "\t$aux";
         }
         if($type_tag > 0){
-            $str_table2 .= "\t$aux_tag[3]";
+	    my $aux = lc($aux_tag[3]);
+            $str_table2 .= "\t$aux";
         }
         $str_table2 .= "\n";
 	print $fl "Profile HMM $key does not found in vFam database. Generating quantitative reports without annotation data.\n";
@@ -1138,10 +1224,12 @@ sub verifyScoreEvalue{
                     if($read_length_prot < $model_length){
                         print $fl "Model: $hmm\n";
                         print $fl "Cutoff score: $usr_score\n";
+			print $fl "Model  length: $model_length\n";
                         print $fl "Read Length: $read_length\n";
                         my $new_value = ($read_length_prot/$model_length)*$usr_score;
                         $usr_score = $new_value;
-                        print $fl "Adjusted cutoff score: $usr_score\n";
+			my $printed_value =  sprintf("%.2f", $usr_score);
+                        print $fl "Adjusted cutoff score: $printed_value\n";
                     }
                 }
 		else{
@@ -1182,10 +1270,12 @@ sub verifyScoreEvalue{
             			if($read_length_prot < $model_length){
 				    print $fl "Model: $file\n";
                                     print $fl "Cutoff score: $value\n";
+				    print $fl "Model length: $model_length\n";
                                     print $fl "Read Length: $read_length\n";
                 		    my $new_value = ($read_length_prot/$model_length)*$value;
                 		    $value = $new_value;
-				    print $fl "Adjusted cutoff score: $value\n";
+				    my $printed_value =  sprintf("%.2f", $value);
+				    print $fl "Adjusted cutoff score: $printed_value\n";
             			}
                             }
                             $hmms_score{lc($aux_n)} = $value;
@@ -1348,7 +1438,8 @@ sub runTranseq{
     my $file = shift;
     my $dir = shift;
     my $string;
-    my $aux;    
+    my $aux;        
+    $name =~ s/\.fasta//g;
     if(defined $dir){
     	$string = $dir."/".$name."*_transeq*";
 	$aux = `ls $string 2> /dev/null`;
@@ -1547,4 +1638,54 @@ sub verify_file_type{ # 1 - fasta file; 2 - fastq file; 3 - tabular file
     }
     close(FILE);
     return 3;
+}
+
+sub format_multifasta_headers {
+    my $db = shift;
+    my $given_name = shift;
+    my $name;
+    my $extension = "";
+
+    if ($db =~ m/(.*)\.([\w]+)$/) {
+        $name = $1;
+        $extension = $2;
+    }
+    else {
+        $name = $db;
+    }
+    my $formatted_headers_db = $name . "_formatted." . $extension;
+    $formatted_headers_db = $given_name if defined $given_name;
+
+    print "Eliminating duplicate headers from $db and creating $formatted_headers_db ... \n";
+    print $fl "Eliminating duplicate headers from $db and creating $formatted_headers_db ... \n";
+    if (!-e $formatted_headers_db) {
+        open(DDB, "<$db") or die "ERROR: Could not open database file $db (865): $!\n";
+	open(FORMAT, ">$formatted_headers_db") or die "ERROR: Could not create file $formatted_headers_db (866): $!\n";
+        my %seen;
+        while(my $line = <DDB>) {
+            if($line =~ /^(>\S+)/) {
+                my $id = $1;
+
+                if(!exists $seen{$id}) {
+                    print FORMAT "$id\_duplicate1\n";
+                }
+                else {
+                    print FORMAT "$id\_duplicate2\n";
+                }
+                $seen{$id}++;
+            }
+            else {
+                print FORMAT $line;
+            }
+        }
+
+        print "Done.\n";
+        close DDB;
+        close FORMAT;
+    }
+    else {
+        print "File $formatted_headers_db already exists; skipping duplicate header removal.\n";
+        print $fl "File $formatted_headers_db already exists; skipping duplicate header removal.\n";
+    }
+    return ($formatted_headers_db);
 }
